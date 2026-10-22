@@ -2,6 +2,11 @@ import type { Lead, LeadAnalysis, PriorityBand } from '../src/types/lead.ts'
 
 export const DEFAULT_GEMINI_MODEL = 'gemini-3.5-flash-lite'
 
+export function normalizeGeminiModelId(value: string | undefined): string {
+  const cleanedValue = (value || DEFAULT_GEMINI_MODEL).trim().replace(/^['"`]|['"`]$/g, '')
+  return cleanedValue.replace(/^models\//, '') || DEFAULT_GEMINI_MODEL
+}
+
 type LeadContext = Pick<
   Lead,
   'name' | 'location' | 'propertyRequirement' | 'budget' | 'buyingTimeline' | 'customerMessage'
@@ -192,7 +197,8 @@ export async function analyzeLeadWithGemini(
     throw new Error('GEMINI_API_KEY is missing. Add it to .env.local and restart the server.')
   }
 
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`
+  const modelId = normalizeGeminiModelId(model)
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelId)}:generateContent`
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
@@ -295,7 +301,8 @@ export async function answerLeadFollowUpWithGemini(
     throw new Error('A follow-up question is required.')
   }
 
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`
+  const modelId = normalizeGeminiModelId(model)
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelId)}:generateContent`
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: {

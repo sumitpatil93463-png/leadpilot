@@ -4,7 +4,7 @@ LeadPilot is an AI-assisted workspace for real-estate sales teams. It is being b
 
 ## Current status
 
-The core assignment workflow is complete and the project is deployment-ready: intake, real Gemini analysis, priority sorting, contextual follow-up chat, and the Call Prep Brief are implemented.
+The core assignment workflow is complete and the project is deployment-ready: intake, real Gemini analysis, explainable priority signals, priority sorting, contextual follow-up chat, and the Call Prep Brief are implemented. A labeled demo workspace is also available so a reviewer can understand the product without first entering data.
 
 ## Local setup
 
@@ -37,9 +37,32 @@ npm run preview
 - Local development API middleware in `vite.config.ts`
 - Vercel serverless API route under `api/`
 - Structured Gemini response with JSON schema validation
+- Explainable priority signals for timeline, budget, requirements, and conversation readiness
 - Lead-specific follow-up context with in-memory chat history per lead
 - Priority sorting and filter controls for fast lead triage
 - Vercel-compatible deployment target
+
+## System flow
+
+```mermaid
+flowchart LR
+    Salesperson[Salesperson] --> Dashboard[React + TypeScript dashboard]
+    Dashboard --> Intake[Lead intake form]
+    Dashboard --> Inbox[Priority inbox + Call Prep Brief]
+    Dashboard --> Copilot[Lead-specific follow-up copilot]
+    Dashboard --> Storage[(Browser localStorage)]
+    Intake --> Analyze[/api/analyze]
+    Copilot --> FollowUp[/api/follow-up]
+    Analyze --> Shared[Shared server/ai.ts]
+    FollowUp --> Shared
+    Shared --> Gemini[Gemini API]
+    Gemini --> Shared
+    Shared --> Structured[Structured analysis + explainable signals]
+    Structured --> Inbox
+    Structured --> Copilot
+```
+
+The browser owns the salesperson workflow and local persistence. Both server endpoints share the same Gemini prompt, model normalization, response parsing, and fallback handling so local development and Vercel use the same product logic without exposing the API key to the client.
 
 ## Deployment
 
@@ -63,12 +86,13 @@ Never commit `.env.local` or paste the Gemini key into the repository. The API r
 
 ## Three-minute demo flow
 
-1. Open the dashboard and explain that the inbox ranks inbound opportunities by AI priority.
-2. Add a new lead with a customer message, budget, location, and timeline.
-3. Show the generated score, Hot/Warm/Cool label, summary, intent, concerns, and recommended next action.
-4. Open the Call Prep Brief and explain how it turns analysis into a pre-call checklist.
-5. Ask the lead-specific copilot: "What should I emphasize on the call?"
-6. Use the priority filters to show Hot, Warm, Cool, and Needs analysis groups.
+1. Open the dashboard and click **Load demo workspace** to make the complete workflow visible immediately.
+2. Explain that the inbox ranks inbound opportunities by AI priority and shows the signals behind each score.
+3. Add a new lead with a customer message, budget, location, and timeline to demonstrate the real Gemini path.
+4. Show the generated score, Hot/Warm/Cool label, explainable signals, summary, intent, concerns, and recommended next action.
+5. Open the Call Prep Brief and explain how it turns analysis into a pre-call checklist.
+6. Copy the suggested response, then ask the lead-specific copilot: "What should I emphasize on the call?"
+7. Use the priority filters to show Hot, Warm, Cool, and Needs analysis groups.
 
 ## Known limitations
 
@@ -77,6 +101,13 @@ Never commit `.env.local` or paste the Gemini key into the repository. The API r
 - There is no authentication, CRM sync, or database yet.
 - The AI output is an assistant draft and should be reviewed by a salesperson before sending.
 - Deployment requires a Gemini API key in the hosting provider's server-side environment variables.
+
+## Shortlist-ready product touches
+
+- **Explainability:** every AI score can show the four signals that shaped the recommendation instead of presenting a black-box number.
+- **Fast evaluation:** the demo workspace gives reviewers realistic records, scores, call prep, and follow-up context in one click.
+- **Human-in-the-loop workflow:** suggested responses are editable and copyable, and the footer makes the human approval boundary explicit.
+- **Portable architecture:** local Vite middleware and Vercel functions share the same server-side AI module.
 
 ## AI usage disclosure
 

@@ -42,7 +42,14 @@ function localApiPlugin(apiKey: string, model: string): Plugin {
 
         try {
           const bodyText = await readRequestBody(request as unknown as ReadableRequest)
-          const body: unknown = JSON.parse(bodyText)
+          let body: unknown
+          try {
+            body = JSON.parse(bodyText)
+          } catch {
+            sendJson(response, 400, { error: 'The request body must be valid JSON.' })
+            return
+          }
+
           const lead = body && typeof body === 'object' && 'lead' in body ? (body as { lead?: unknown }).lead : undefined
 
           if (!lead || typeof lead !== 'object') {

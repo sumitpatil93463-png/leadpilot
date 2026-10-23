@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import type { Lead } from '../types/lead'
 
 type LeadAnalysisPanelProps = {
@@ -37,13 +38,12 @@ function SalesInsight() {
       <div className="insight-quote">
         <span className="quote-mark">“</span>
         <p>
-          Leads with a clear buying timeline are converting <strong>2.4× faster</strong>. Ask for
-          the move-in date early.
+          A clear buying timeline is one of the strongest signals. Ask for the move-in date early.
         </p>
       </div>
       <div className="insight-divider" />
       <div className="insight-footer">
-        <span>Based on your recent pipeline</span>
+        <span>AI playbook heuristic</span>
         <span className="insight-arrow">↗</span>
       </div>
     </aside>
@@ -51,6 +51,27 @@ function SalesInsight() {
 }
 
 function LeadAnalysisPanel({ lead, isAnalyzing, error, onAnalyze }: LeadAnalysisPanelProps) {
+  const [copyLabel, setCopyLabel] = useState('Copy response')
+
+  useEffect(() => {
+    setCopyLabel('Copy response')
+  }, [lead?.id])
+
+  async function copySuggestedResponse(response: string) {
+    if (!navigator.clipboard) {
+      setCopyLabel('Copy unavailable')
+      return
+    }
+
+    try {
+      await navigator.clipboard.writeText(response)
+      setCopyLabel('Copied')
+      window.setTimeout(() => setCopyLabel('Copy response'), 1800)
+    } catch {
+      setCopyLabel('Copy unavailable')
+    }
+  }
+
   if (!lead) {
     return <SalesInsight />
   }
@@ -107,6 +128,35 @@ function LeadAnalysisPanel({ lead, isAnalyzing, error, onAnalyze }: LeadAnalysis
         <p>{analysis.summary}</p>
       </div>
 
+      <div className="priority-signals-card">
+        <div className="priority-signals-header">
+          <div>
+            <p className="analysis-label">Why this score</p>
+            <p className="priority-signals-copy">
+              A transparent read on the signals that shaped the AI priority recommendation.
+            </p>
+          </div>
+          <span className="response-chip">Explainable</span>
+        </div>
+        {analysis.prioritySignals?.length ? (
+          <div className="priority-signal-grid">
+            {analysis.prioritySignals.map((signal) => (
+              <div className="priority-signal" key={`${signal.label}-${signal.detail}`}>
+                <div className="priority-signal-topline">
+                  <span className="priority-signal-label">{signal.label}</span>
+                  <span className={`priority-signal-strength signal-${signal.strength}`}>{signal.strength}</span>
+                </div>
+                <p>{signal.detail}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="analysis-muted priority-signals-empty">
+            Re-run this lead to generate the score signals.
+          </p>
+        )}
+      </div>
+
       <div className="analysis-two-column">
         <div>
           <p className="analysis-label">Customer intent</p>
@@ -126,7 +176,16 @@ function LeadAnalysisPanel({ lead, isAnalyzing, error, onAnalyze }: LeadAnalysis
       <div className="response-card">
         <div className="response-card-header">
           <p className="analysis-label">Suggested response</p>
-          <span className="response-chip">Ready to edit</span>
+          <div className="response-actions">
+            <span className="response-chip">Ready to edit</span>
+            <button
+              className={`copy-button ${copyLabel === 'Copied' ? 'is-copied' : ''}`}
+              onClick={() => void copySuggestedResponse(analysis.suggestedResponse)}
+              type="button"
+            >
+              {copyLabel}
+            </button>
+          </div>
         </div>
         <p>“{analysis.suggestedResponse}”</p>
       </div>

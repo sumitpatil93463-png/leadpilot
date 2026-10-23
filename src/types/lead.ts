@@ -1,5 +1,11 @@
 export type PriorityBand = 'hot' | 'warm' | 'cool'
 
+export type PrioritySignal = {
+  label: string
+  strength: 'strong' | 'mixed' | 'weak'
+  detail: string
+}
+
 export type LeadAnalysis = {
   summary: string
   intent: string
@@ -9,6 +15,7 @@ export type LeadAnalysis = {
   suggestedResponse: string
   priorityScore: number
   priorityBand: PriorityBand
+  prioritySignals?: PrioritySignal[]
   callPrep?: {
     talkingPoints: string[]
     discoveryQuestions: string[]
@@ -27,6 +34,7 @@ export type Lead = {
   customerMessage: string
   analysis?: LeadAnalysis
   createdAt: string
+  isDemo?: boolean
 }
 
 export type FollowUpMessage = {

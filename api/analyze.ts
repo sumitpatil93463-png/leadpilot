@@ -20,7 +20,13 @@ export default async function handler(request: ApiRequest, response: ApiResponse
     return response.status(500).json({ error: 'GEMINI_API_KEY is not configured on the server.' })
   }
 
-  const body = typeof request.body === 'string' ? JSON.parse(request.body) : request.body
+  let body: unknown
+  try {
+    body = typeof request.body === 'string' ? JSON.parse(request.body) : request.body
+  } catch {
+    return response.status(400).json({ error: 'The request body must be valid JSON.' })
+  }
+
   const lead = body && typeof body === 'object' && 'lead' in body ? (body as { lead?: unknown }).lead : undefined
 
   if (!lead || typeof lead !== 'object') {

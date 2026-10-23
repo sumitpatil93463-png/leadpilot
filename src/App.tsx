@@ -2,11 +2,14 @@ import { useEffect, useMemo, useState } from 'react'
 import LeadForm, { type LeadDraft } from './components/LeadForm'
 import LeadAnalysisPanel from './components/LeadAnalysisPanel'
 import LeadFollowUpChat from './components/LeadFollowUpChat'
+import { createDemoLeads } from './lib/demoData'
 import { loadLeads, saveLeads } from './lib/storage'
 import type { FollowUpMessage, Lead, PriorityBand } from './types/lead'
 
+type WorkspaceView = 'Inbox' | 'Call prep' | 'Follow-ups' | 'All leads'
+
 type NavItem = {
-  label: string
+  label: WorkspaceView
   icon: string
   badge?: string
 }
@@ -21,11 +24,11 @@ const priorityFilters: Array<{ value: PriorityFilter; label: string }> = [
   { value: 'pending', label: 'Needs analysis' },
 ]
 
-function getNavItems(leadCount: number): NavItem[] {
+function getNavItems(leadCount: number, analyzedLeadCount: number): NavItem[] {
   return [
     { label: 'Inbox', icon: '↗', badge: leadCount ? String(leadCount) : undefined },
-  { label: 'Call prep', icon: '✦' },
-    { label: 'Follow-ups', icon: '↻', badge: leadCount ? '—' : undefined },
+    { label: 'Call prep', icon: '✦', badge: analyzedLeadCount ? String(analyzedLeadCount) : undefined },
+    { label: 'Follow-ups', icon: '↻', badge: analyzedLeadCount ? String(analyzedLeadCount) : undefined },
     { label: 'All leads', icon: '☷' },
   ]
 }
@@ -45,6 +48,55 @@ function createLeadId(): string {
   }
 
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+function getViewLeads(leads: Lead[], view: WorkspaceView): Lead[] {
+  if (view === 'Call prep' || view === 'Follow-ups') {
+    return leads.filter((lead) => Boolean(lead.analysis))
+  }
+
+  return leads
+}
+
+function getViewCopy(view: WorkspaceView): { kicker: string; title: string; description: string } {
+  if (view === 'Call prep') {
+    return {
+      kicker: 'Conversion-ready context',
+      title: 'Walk into every call with a point of view.',
+      description: 'Review the highest-priority briefs, risks, and discovery questions before you reach out.',
+    }
+  }
+
+  if (view === 'Follow-ups') {
+    return {
+      kicker: 'Grounded follow-up queue',
+      title: 'Turn context into a better next message.',
+      description: 'Use the lead-specific copilot to sharpen your reply without losing the customer story.',
+    }
+  }
+
+  if (view === 'All leads') {
+    return {
+      kicker: 'Full pipeline view',
+      title: 'Keep every opportunity within reach.',
+      description: 'Browse saved inquiries, then sort them by urgency and AI priority when it is time to act.',
+    }
+  }
+
+  return {
+    kicker: 'Your pipeline at a glance',
+    title: 'Focus on the leads most likely to move.',
+    description: 'LeadPilot turns every inbound message into a clear next step for your team.',
+  }
+}
+
+function formatCurrentDate(): string {
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(new Date())
 }
 
 function getFilterCount(leads: Lead[], filter: PriorityFilter): number {
@@ -117,7 +169,7 @@ function getPriorityCards(leads: Lead[]): Array<{
 }
 
 function App() {
-  const [activeView, setActiveView] = useState('Inbox')
+  const [activeView, setActiveView] = useState<WorkspaceView>('Inbox')
   const [leads, setLeads] = useState<Lead[]>(loadLeads)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null)
@@ -133,10 +185,12 @@ function App() {
     saveLeads(leads)
   }, [leads])
 
-  const navItems = getNavItems(leads.length)
+  const navItems = getNavItems(leads.length, leads.filter((lead) => Boolean(lead.analysis)).length)
+  const viewCopy = getViewCopy(activeView)
+  const viewLeads = useMemo(() => getViewLeads(leads, activeView), [leads, activeView])
   const priorityCards = useMemo(() => getPriorityCards(leads), [leads])
   const visibleLeads = useMemo(() => {
-    const filteredLeads = leads.filter((lead) => {
+    const filteredLeads = viewLeads.filter((lead) => {
       if (priorityFilter === 'all') {
         return true
       }
@@ -149,8 +203,8 @@ function App() {
     })
 
     return sortLeadsByPriority(filteredLeads)
-  }, [leads, priorityFilter])
-  const selectedLead = leads.find((lead) => lead.id === selectedLeadId) ?? leads[0]
+  }, [priorityFilter, viewLeads])
+  const selectedLead = visibleLeads.find((lead) => lead.id === selectedLeadId) ?? visibleLeads[0]
 
   function selectLead(leadId: string) {
     setSelectedLeadId(leadId)
@@ -294,6 +348,40 @@ function App() {
     void analyzeLead(newLead)
   }
 
+  function handleNavSelection(view: WorkspaceView) {
+    setActiveView(view)
+    setFollowUpDraft('')
+
+    if (view === 'Inbox' || view === 'All leads') {
+      setPriorityFilter('all')
+      return
+    }
+
+    setPriorityFilter('all')
+    const firstAnalyzedLead = sortLeadsByPriority(leads.filter((lead) => Boolean(lead.analysis)))[0]
+    if (!firstAnalyzedLead) {
+      return
+    }
+
+    setSelectedLeadId(firstAnalyzedLead.id)
+    window.requestAnimationFrame(() => {
+      document
+        .querySelector(view === 'Call prep' ? '.analysis-panel' : '.chat-panel')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }
+
+  function handleLoadDemoWorkspace() {
+    const demoLeads = createDemoLeads()
+    setLeads(demoLeads)
+    setSelectedLeadId(demoLeads[0]?.id ?? null)
+    setPriorityFilter('all')
+    setActiveView('Inbox')
+    setAnalysisErrors({})
+    setFollowUpErrors({})
+    setFollowUpMessagesByLead({})
+  }
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -320,7 +408,7 @@ function App() {
             <button
               className={`nav-item ${activeView === item.label ? 'is-active' : ''}`}
               key={item.label}
-              onClick={() => setActiveView(item.label)}
+              onClick={() => handleNavSelection(item.label)}
               type="button"
             >
               <span className="nav-icon" aria-hidden="true">
@@ -355,7 +443,7 @@ function App() {
       <main className="main-content">
         <header className="topbar">
           <div>
-            <p className="eyebrow">Wednesday, October 21, 2026</p>
+            <p className="eyebrow">{formatCurrentDate()}</p>
             <h1>{activeView === 'Inbox' ? 'Good morning, Jordan' : activeView}</h1>
           </div>
           <div className="topbar-actions">
@@ -374,11 +462,9 @@ function App() {
 
         <section className="hero-row">
           <div>
-            <p className="section-kicker">Your pipeline at a glance</p>
-            <h2>Focus on the leads most likely to move.</h2>
-            <p className="hero-copy">
-              LeadPilot turns every inbound message into a clear next step for your team.
-            </p>
+            <p className="section-kicker">{viewCopy.kicker}</p>
+            <h2>{viewCopy.title}</h2>
+            <p className="hero-copy">{viewCopy.description}</p>
           </div>
           <div className="date-filter">
             <span className="filter-icon">◷</span>
@@ -405,11 +491,11 @@ function App() {
             <div className="panel-heading lead-inbox-heading">
               <div>
                 <div className="heading-with-count">
-                  <h3>Lead inbox</h3>
-                  <span className="count-pill">{leads.length} active</span>
+                  <h3>{activeView === 'Inbox' ? 'Lead inbox' : activeView}</h3>
+                  <span className="count-pill">{viewLeads.length} active</span>
                 </div>
                 <p>
-                  {leads.length
+                  {viewLeads.length
                     ? `Sorted by AI priority score · ${visibleLeads.length} shown`
                     : 'Sorted by AI priority score'}
                 </p>
@@ -422,8 +508,8 @@ function App() {
             {leads.length ? (
               <div className="priority-filter-row">
                 <span className="filter-caption">Show</span>
-                <div className="priority-filter-bar" role="group" aria-label="Filter leads by priority">
-                  {priorityFilters.map((filter) => (
+                  <div className="priority-filter-bar" role="group" aria-label="Filter leads by priority">
+                    {priorityFilters.map((filter) => (
                     <button
                       className={`priority-filter ${priorityFilter === filter.value ? 'is-active' : ''}`}
                       key={filter.value}
@@ -431,7 +517,7 @@ function App() {
                       type="button"
                     >
                       {filter.label}
-                      <span>{getFilterCount(leads, filter.value)}</span>
+                      <span>{getFilterCount(viewLeads, filter.value)}</span>
                     </button>
                   ))}
                 </div>
@@ -454,10 +540,17 @@ function App() {
                   Add an inquiry, chat transcript, or call note. We’ll turn it into a prioritized,
                   ready-to-use action plan.
                 </p>
-                <button className="button button-accent" onClick={() => setIsFormOpen(true)} type="button">
-                  <span className="button-plus">+</span>
-                  Add your first lead
-                </button>
+                <div className="empty-actions">
+                  <button className="button button-accent" onClick={() => setIsFormOpen(true)} type="button">
+                    <span className="button-plus">+</span>
+                    Add your first lead
+                  </button>
+                  <button className="button button-quiet" onClick={handleLoadDemoWorkspace} type="button">
+                    Load demo workspace
+                    <span className="button-arrow">↗</span>
+                  </button>
+                </div>
+                <small className="demo-note">Three labeled demo leads let reviewers explore the full workflow instantly.</small>
               </div>
             ) : visibleLeads.length === 0 ? (
               <div className="filtered-empty-state">
@@ -504,7 +597,8 @@ function App() {
                             {lead.analysis.priorityBand}
                           </span>
                         ) : null}
-                      </div>
+                        {lead.isDemo ? <span className="lead-source-badge">Demo</span> : null}
+                       </div>
                       <p>{lead.propertyRequirement}</p>
                       <div className="lead-row-meta">
                         <span>{lead.location}</span>

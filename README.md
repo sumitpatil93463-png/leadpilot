@@ -46,18 +46,18 @@ npm run preview
 
 ```mermaid
 flowchart LR
-    Salesperson[Salesperson] --> Dashboard[React + TypeScript dashboard]
-    Dashboard --> Intake[Lead intake form]
-    Dashboard --> Inbox[Priority inbox + Call Prep Brief]
-    Dashboard --> Copilot[Lead-specific follow-up copilot]
-    Dashboard --> Storage[(Browser localStorage)]
-    Intake --> Analyze[/api/analyze]
-    Copilot --> FollowUp[/api/follow-up]
-    Analyze --> Shared[Shared server/ai.ts]
+    Salesperson["Salesperson"] --> Dashboard["React and TypeScript dashboard"]
+    Dashboard --> Intake["Lead intake form"]
+    Dashboard --> Inbox["Priority inbox and Call Prep Brief"]
+    Dashboard --> Copilot["Lead-specific follow-up copilot"]
+    Dashboard --> Storage["Browser localStorage"]
+    Intake --> Analyze["/api/analyze"]
+    Copilot --> FollowUp["/api/follow-up"]
+    Analyze --> Shared["Shared server/ai.ts"]
     FollowUp --> Shared
-    Shared --> Gemini[Gemini API]
+    Shared --> Gemini["Gemini API"]
     Gemini --> Shared
-    Shared --> Structured[Structured analysis + explainable signals]
+    Shared --> Structured["Structured analysis and explainable signals"]
     Structured --> Inbox
     Structured --> Copilot
 ```

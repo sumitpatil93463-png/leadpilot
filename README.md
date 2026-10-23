@@ -93,6 +93,7 @@ Never commit `.env.local` or paste the Gemini key into the repository. The API r
 5. Open the Call Prep Brief and explain how it turns analysis into a pre-call checklist.
 6. Copy the suggested response, then ask the lead-specific copilot: "What should I emphasize on the call?"
 7. Use the priority filters to show Hot, Warm, Cool, and Needs analysis groups.
+https://drive.google.com/file/d/1ZYgLwyTODvU6oNVIHMS0ucTkLM-Jyh2R/view?usp=sharing
 
 ## Known limitations
 

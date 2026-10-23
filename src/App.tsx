@@ -168,6 +168,47 @@ function getPriorityCards(leads: Lead[]): Array<{
   ]
 }
 
+function getPipelinePulse(leads: Lead[]): {
+  analyzedCount: number
+  coverage: number
+  bandCounts: Array<{ band: PriorityBand; count: number }>
+  nextMove: string
+} {
+  const analyzedLeads = leads.filter((lead) => lead.analysis)
+  const pendingCount = leads.length - analyzedLeads.length
+  const topLead = sortLeadsByPriority(analyzedLeads)[0]
+  const coverage = leads.length ? Math.round((analyzedLeads.length / leads.length) * 100) : 0
+
+  return {
+    analyzedCount: analyzedLeads.length,
+    coverage,
+    bandCounts: (['hot', 'warm', 'cool'] as PriorityBand[]).map((band) => ({
+      band,
+      count: analyzedLeads.filter((lead) => lead.analysis?.priorityBand === band).length,
+    })),
+    nextMove: topLead
+      ? `Start with ${topLead.name} — the highest-priority conversation.`
+      : pendingCount
+        ? 'Analyze the next pending inquiry to unlock a recommendation.'
+        : 'Add a lead to unlock pipeline guidance.',
+  }
+}
+
+function matchesSearch(lead: Lead, searchQuery: string): boolean {
+  if (!searchQuery) {
+    return true
+  }
+
+  return [
+    lead.name,
+    lead.location,
+    lead.propertyRequirement,
+    lead.budget,
+    lead.buyingTimeline,
+    lead.customerMessage,
+  ].some((value) => value.toLowerCase().includes(searchQuery))
+}
+
 function App() {
   const [activeView, setActiveView] = useState<WorkspaceView>('Inbox')
   const [leads, setLeads] = useState<Lead[]>(loadLeads)
@@ -180,6 +221,8 @@ function App() {
   const [sendingFollowUpLeadId, setSendingFollowUpLeadId] = useState<string | null>(null)
   const [followUpErrors, setFollowUpErrors] = useState<Record<string, string>>({})
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('all')
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
     saveLeads(leads)
@@ -189,8 +232,14 @@ function App() {
   const viewCopy = getViewCopy(activeView)
   const viewLeads = useMemo(() => getViewLeads(leads, activeView), [leads, activeView])
   const priorityCards = useMemo(() => getPriorityCards(leads), [leads])
+  const pipelinePulse = useMemo(() => getPipelinePulse(leads), [leads])
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
   const visibleLeads = useMemo(() => {
     const filteredLeads = viewLeads.filter((lead) => {
+      if (!matchesSearch(lead, normalizedSearchQuery)) {
+        return false
+      }
+
       if (priorityFilter === 'all') {
         return true
       }
@@ -203,7 +252,7 @@ function App() {
     })
 
     return sortLeadsByPriority(filteredLeads)
-  }, [priorityFilter, viewLeads])
+  }, [normalizedSearchQuery, priorityFilter, viewLeads])
   const selectedLead = visibleLeads.find((lead) => lead.id === selectedLeadId) ?? visibleLeads[0]
 
   function selectLead(leadId: string) {
@@ -345,12 +394,15 @@ function App() {
     setSelectedLeadId(newLead.id)
     setIsFormOpen(false)
     setActiveView('Inbox')
+    setSearchQuery('')
+    setIsSearchOpen(false)
     void analyzeLead(newLead)
   }
 
   function handleNavSelection(view: WorkspaceView) {
     setActiveView(view)
     setFollowUpDraft('')
+    setSearchQuery('')
 
     if (view === 'Inbox' || view === 'All leads') {
       setPriorityFilter('all')
@@ -377,6 +429,7 @@ function App() {
     setSelectedLeadId(demoLeads[0]?.id ?? null)
     setPriorityFilter('all')
     setActiveView('Inbox')
+    setSearchQuery('')
     setAnalysisErrors({})
     setFollowUpErrors({})
     setFollowUpMessagesByLead({})
@@ -447,7 +500,41 @@ function App() {
             <h1>{activeView === 'Inbox' ? 'Good morning, Jordan' : activeView}</h1>
           </div>
           <div className="topbar-actions">
-            <button className="icon-button" type="button" aria-label="Search">
+            {isSearchOpen ? (
+              <label className="global-search">
+                <span aria-hidden="true">⌕</span>
+                <input
+                  autoFocus
+                  aria-label="Search leads"
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Escape') {
+                      setSearchQuery('')
+                      setIsSearchOpen(false)
+                    }
+                  }}
+                  placeholder="Search leads..."
+                  value={searchQuery}
+                />
+                {searchQuery ? (
+                  <button
+                    aria-label="Clear lead search"
+                    className="global-search-clear"
+                    onClick={() => setSearchQuery('')}
+                    type="button"
+                  >
+                    ×
+                  </button>
+                ) : null}
+              </label>
+            ) : null}
+            <button
+              aria-expanded={isSearchOpen}
+              aria-label={isSearchOpen ? 'Close search' : 'Search'}
+              className={`icon-button ${isSearchOpen ? 'is-active' : ''}`}
+              onClick={() => setIsSearchOpen((currentOpen) => !currentOpen)}
+              type="button"
+            >
               ⌕
             </button>
             <button className="icon-button notification-button" type="button" aria-label="Notifications">
@@ -486,6 +573,47 @@ function App() {
           ))}
         </section>
 
+        <section className="panel pipeline-pulse" aria-label="Pipeline pulse">
+          <div className="pulse-header">
+            <div>
+              <p className="section-kicker">Pipeline pulse</p>
+              <h3>Know where your attention should go next.</h3>
+            </div>
+            <span className="count-pill">
+              {pipelinePulse.analyzedCount}/{leads.length} analyzed
+            </span>
+          </div>
+          <div className="pulse-grid">
+            <div className="pulse-coverage">
+              <div className="pulse-stat-line">
+                <span>AI coverage</span>
+                <strong>{pipelinePulse.coverage}%</strong>
+              </div>
+              <div className="coverage-track" aria-label={`${pipelinePulse.coverage}% of leads analyzed`}>
+                <span style={{ width: `${pipelinePulse.coverage}%` }} />
+              </div>
+              <p>
+                {leads.length
+                  ? `${pipelinePulse.analyzedCount} of ${leads.length} saved leads have a next-step brief.`
+                  : 'Add a lead to start building a prioritized pipeline.'}
+              </p>
+            </div>
+            <div className="pulse-band-list" aria-label="Priority distribution">
+              {pipelinePulse.bandCounts.map(({ band, count }) => (
+                <div className="pulse-band-row" key={band}>
+                  <span className={`pulse-band-dot pulse-band-dot-${band}`} />
+                  <span>{band}</span>
+                  <strong>{count}</strong>
+                </div>
+              ))}
+            </div>
+            <div className="pulse-next-step">
+              <p className="analysis-label">Recommended focus</p>
+              <p>{pipelinePulse.nextMove}</p>
+            </div>
+          </div>
+        </section>
+
         <section className="workspace-grid">
           <article className="panel leads-panel">
             <div className="panel-heading lead-inbox-heading">
@@ -500,7 +628,14 @@ function App() {
                     : 'Sorted by AI priority score'}
                 </p>
               </div>
-              <button className="text-button" onClick={() => setPriorityFilter('all')} type="button">
+              <button
+                className="text-button"
+                onClick={() => {
+                  setPriorityFilter('all')
+                  setSearchQuery('')
+                }}
+                type="button"
+              >
                 View all <span>→</span>
               </button>
             </div>
@@ -552,15 +687,26 @@ function App() {
                 </div>
                 <small className="demo-note">Three labeled demo leads let reviewers explore the full workflow instantly.</small>
               </div>
-            ) : visibleLeads.length === 0 ? (
-              <div className="filtered-empty-state">
-                <span className="empty-kicker">No matching leads yet</span>
-                <h4>Nothing in this group</h4>
-                <p>Try another priority filter or return to all leads.</p>
-                <button className="button button-quiet" onClick={() => setPriorityFilter('all')} type="button">
-                  Show all leads
-                </button>
-              </div>
+             ) : visibleLeads.length === 0 ? (
+               <div className="filtered-empty-state">
+                 <span className="empty-kicker">{searchQuery ? 'Search results' : 'No matching leads yet'}</span>
+                 <h4>{searchQuery ? 'No leads found' : 'Nothing in this group'}</h4>
+                 <p>
+                   {searchQuery
+                     ? 'Try a different name, location, budget, or requirement.'
+                     : 'Try another priority filter or return to all leads.'}
+                 </p>
+                 <button
+                   className="button button-quiet"
+                   onClick={() => {
+                     setPriorityFilter('all')
+                     setSearchQuery('')
+                   }}
+                   type="button"
+                 >
+                   {searchQuery ? 'Clear search' : 'Show all leads'}
+                 </button>
+               </div>
             ) : (
               <div className="lead-list">
                 {visibleLeads.map((lead) => (

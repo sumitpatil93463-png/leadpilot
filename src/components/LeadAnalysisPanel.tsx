@@ -25,6 +25,85 @@ function AnalysisList({ title, items }: { title: string; items: string[] }) {
   )
 }
 
+function formatMarkdownList(items: string[]): string {
+  return items.length ? items.map((item) => `- ${item}`).join('\n') : '- None provided'
+}
+
+function downloadLeadBrief(lead: Lead): void {
+  if (!lead.analysis) {
+    return
+  }
+
+  const { analysis } = lead
+  const callPrep = analysis.callPrep
+  const brief = `# LeadPilot brief: ${lead.name}
+
+## Snapshot
+
+- **Location:** ${lead.location}
+- **Budget:** ${lead.budget}
+- **Timeline:** ${lead.buyingTimeline}
+- **Priority:** ${analysis.priorityScore}/100 (${analysis.priorityBand})
+
+## Summary
+
+${analysis.summary}
+
+## Customer intent
+
+${analysis.intent}
+
+## Priority signals
+
+${formatMarkdownList(
+    analysis.prioritySignals?.map((signal) => `${signal.label} (${signal.strength}): ${signal.detail}`) ?? [],
+  )}
+
+## Key requirements
+
+${formatMarkdownList(analysis.keyRequirements)}
+
+## Concerns
+
+${formatMarkdownList(analysis.concerns)}
+
+## Recommended next action
+
+${analysis.recommendedNextAction}
+
+## Suggested response
+
+${analysis.suggestedResponse}
+
+${callPrep ? `## Call Prep Brief
+
+### Objective
+
+${callPrep.callObjective}
+
+### Talking points
+
+${formatMarkdownList(callPrep.talkingPoints)}
+
+### Discovery questions
+
+${formatMarkdownList(callPrep.discoveryQuestions)}
+
+### Risks to address
+
+${formatMarkdownList(callPrep.risksToAddress)}
+` : ''}
+`
+  const filename = `${lead.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'lead'}-brief.md`
+  const blob = new Blob([brief], { type: 'text/markdown;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = filename
+  anchor.click()
+  window.setTimeout(() => URL.revokeObjectURL(url), 0)
+}
+
 function SalesInsight() {
   return (
     <aside className="panel insight-panel">
@@ -117,9 +196,14 @@ function LeadAnalysisPanel({ lead, isAnalyzing, error, onAnalyze }: LeadAnalysis
           <h3>{lead.name}</h3>
           <p>{lead.location} · {lead.buyingTimeline}</p>
         </div>
-        <div className={`priority-badge priority-${analysis.priorityBand}`}>
-          <strong>{analysis.priorityScore}</strong>
-          <span>{analysis.priorityBand}</span>
+        <div className="analysis-header-actions">
+          <button className="export-button" onClick={() => downloadLeadBrief(lead)} type="button">
+            Download brief <span>↓</span>
+          </button>
+          <div className={`priority-badge priority-${analysis.priorityBand}`}>
+            <strong>{analysis.priorityScore}</strong>
+            <span>{analysis.priorityBand}</span>
+          </div>
         </div>
       </div>
 
